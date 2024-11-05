@@ -338,7 +338,7 @@ if (!class_exists('Secure_Updates_Client')) {
                 // Only override if the plugin is from WordPress.org
                 if ($this->is_from_wordpress_org($plugin_data)) {
                     $plugin_slug = $plugin_data->slug;
-                    $transient->response[$plugin_file]->package = trailingslashit($this->custom_host) . 'wp-json/plugin-server/v1/download/' . sanitize_title($plugin_slug);
+                    $transient->response[$plugin_file]->package = trailingslashit($this->custom_host) . 'wp-json/secure-updates-server/v1/download/' . sanitize_title($plugin_slug);
                 }
             }
 
@@ -392,7 +392,7 @@ if (!class_exists('Secure_Updates_Client')) {
             // Check if the plugin is using the custom host
             if ($this->is_using_custom_host($args->slug)) {
                 // Fetch checksum from the custom host's API
-                $response = wp_remote_get(trailingslashit($this->custom_host) . 'wp-json/plugin-server/v1/download/' . sanitize_title($args->slug));
+                $response = wp_remote_get(trailingslashit($this->custom_host) . 'wp-json/secure-updates-server/v1/download/' . sanitize_title($args->slug));
                 if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
                     $body = wp_remote_retrieve_body($response);
                     $data = json_decode($body, true);
@@ -440,7 +440,7 @@ if (!class_exists('Secure_Updates_Client')) {
             }
 
             // Make a GET request to the /connected endpoint
-            $response = wp_remote_get(trailingslashit($custom_host_url) . 'wp-json/plugin-server/v1/connected', [
+            $response = wp_remote_get(trailingslashit($custom_host_url) . 'wp-json/secure-updates-server/v1/connected', [
                 'timeout' => 15,
                 'sslverify' => true,
             ]);
