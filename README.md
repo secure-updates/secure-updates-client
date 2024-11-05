@@ -14,6 +14,8 @@
 
 Secure Updates Client allows you to specify a custom host for receiving plugin updates. This is particularly useful if you're using a mirrored plugin repository or hosting plugins on your own server. The plugin intelligently overrides the update URLs for plugins hosted on WordPress.org while leaving custom-hosted plugins unaffected.
 
+![Plugin Settings Screenshot](images/Secure_Updates_Client_Settings.png)
+
 ### Features
 
 - **Custom Update URL:** Redirects plugin update checks to your specified custom host for supported plugins.
