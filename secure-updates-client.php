@@ -3,7 +3,7 @@
 /*
 Plugin Name: Secure Updates Client
 Description: Allows specifying a custom host for plugin updates.
-Version: 2.0
+Version: 3.1
 Author: Secure Updates Foundation
 Text Domain: secure-updates-client
 Domain Path: /languages
@@ -102,6 +102,30 @@ if (!class_exists('Secure_Updates_Client')) {
                 'sanitize_callback' => 'sanitize_text_field',
                 'default' => '',
             ]);
+        }
+
+        private function verify_plugin_compatibility($plugin_data) {
+            global $wp_version;
+            if (isset($plugin_data['requires'])) {
+                return version_compare($wp_version, $plugin_data['requires'], '>=');
+            }
+            return true;
+        }
+
+        private function check_rate_limit() {
+            $last_request = get_transient('secure_updates_last_request');
+            if ($last_request) {
+                if (time() - $last_request < 5) { // 5 second cooldown
+                    return false;
+                }
+            }
+            set_transient('secure_updates_last_request', time(), HOUR_IN_SECONDS);
+            return true;
+        }
+
+        private function verify_plugin_checksum($file_path, $expected_checksum) {
+            $actual_checksum = hash_file('sha256', $file_path);
+            return hash_equals($expected_checksum, $actual_checksum);
         }
 
         /**
