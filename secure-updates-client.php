@@ -50,9 +50,11 @@ if (!class_exists('Secure_Updates_Client')) {
         private function setup_hooks() {
             // Existing hooks
             add_action('admin_menu', [$this, 'setup_admin_menu']);
+	        add_action('admin_menu', [$this, 'secure_updates_client_add_log_page']);
             add_action('admin_init', [$this, 'register_settings']);
             add_filter('pre_set_site_transient_update_plugins', [$this, 'override_plugin_update_url']);
             add_filter('plugins_api', [$this, 'modify_plugin_information'], 10, 3);
+	        add_filter('plugin_row_meta',  [$this,  'secure_updates_client_plugin_indicator', 10, 2]);
             add_action('wp_ajax_test_custom_host', [$this, 'test_custom_host_connection']);
             add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
 
@@ -65,10 +67,31 @@ if (!class_exists('Secure_Updates_Client')) {
             // Activation/Deactivation hooks
             register_activation_hook(__FILE__, [$this, 'activate_plugin']);
             register_deactivation_hook(__FILE__, [$this, 'deactivate_plugin']);
+	        register_activation_hook(__FILE__, 'secure_updates_client_create_logs_table');
         }
 
+
+	    function secure_updates_client_create_logs_table() {
+		    global $wpdb;
+		    $table_name = $wpdb->prefix . 'secure_update_client_logs';
+		    $charset_collate = $wpdb->get_charset_collate();
+
+		    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        timestamp datetime NOT NULL,
+        action varchar(100) NOT NULL,
+        result varchar(20) NOT NULL,
+        message text NOT NULL,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+
+		    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+		    dbDelta($sql);
+	    }
+
+
         /**
-         * Setup the admin menu in WordPress dashboard.
+         * Set up the admin menu in WordPress dashboard.
          */
         public function setup_admin_menu() {
             add_options_page(
@@ -288,20 +311,21 @@ if (!class_exists('Secure_Updates_Client')) {
                 }
             }
 
-            $response = wp_remote_post(
-                trailingslashit($this->custom_host) . 'wp-json/secure-updates-server/v1/plugins',
-                [
-                    'headers' => [
-                        'Content-Type' => 'application/json',
-                        'Authorization' => 'Bearer ' . $api_key,
-                    ],
-                    'body' => json_encode(['plugins' => $plugin_slugs]),
-                    'timeout' => 15,
-                    'sslverify' => true,
-                ]
-            );
+	        $response = wp_remote_post(
+		        trailingslashit($this->custom_host) . 'wp-json/secure-updates-server/v1/plugins',
+		        [
+			        'headers' => [
+				        'Content-Type'  => 'application/json',
+				        'Authorization' => 'Bearer ' . $api_key,
+				        'X-Client-Home' => home_url() // include the site's home_url
+			        ],
+			        'body'    => json_encode(['plugins' => $plugin_slugs]),
+			        'timeout' => 15,
+			        'sslverify' => true,
+		        ]
+	        );
 
-            if (is_wp_error($response)) {
+	        if (is_wp_error($response)) {
                 error_log('Secure Updates Client: Error sending plugins to server - ' . $response->get_error_message());
             }
         }
@@ -480,6 +504,88 @@ if (!class_exists('Secure_Updates_Client')) {
 
             wp_send_json_success(__('Connection successful.', 'secure-updates-client'));
         }
+
+	    function secure_updates_client_log($action, $result, $message) {
+		    global $wpdb;
+		    $table_name = $wpdb->prefix . 'secure_update_client_logs';
+		    $wpdb->insert(
+			    $table_name,
+			    [
+				    'timestamp' => current_time('mysql'),
+				    'action'    => sanitize_text_field($action),
+				    'result'    => sanitize_text_field($result),
+				    'message'   => sanitize_textarea_field($message)
+			    ],
+			    ['%s','%s','%s','%s']
+		    );
+	    }
+
+
+	    function secure_updates_client_add_log_page() {
+		    add_submenu_page(
+			    'secure-updates-client-settings',
+			    __('Secure Updates Client Logs', 'secure-updates-client'),
+			    __('Logs', 'secure-updates-client'),
+			    'manage_options',
+			    'secure-updates-client-logs',
+			    'secure_updates_client_logs_page'
+		    );
+	    }
+
+	    function secure_updates_client_logs_page() {
+		    global $wpdb;
+		    $table_name = $wpdb->prefix . 'secure_update_client_logs';
+		    $logs = $wpdb->get_results("SELECT * FROM $table_name ORDER BY id DESC LIMIT 50");
+		    ?>
+            <div class="wrap">
+                <h1><?php esc_html_e('Secure Updates Client Logs', 'secure-updates-client'); ?></h1>
+                <table class="widefat fixed striped">
+                    <thead>
+                    <tr>
+                        <th><?php esc_html_e('Timestamp', 'secure-updates-client'); ?></th>
+                        <th><?php esc_html_e('Action', 'secure-updates-client'); ?></th>
+                        <th><?php esc_html_e('Result', 'secure-updates-client'); ?></th>
+                        <th><?php esc_html_e('Message', 'secure-updates-client'); ?></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+				    <?php if ($logs): ?>
+					    <?php foreach ($logs as $log): ?>
+                            <tr>
+                                <td><?php echo esc_html($log->timestamp); ?></td>
+                                <td><?php echo esc_html($log->action); ?></td>
+                                <td><?php echo esc_html($log->result); ?></td>
+                                <td><?php echo esc_html($log->message); ?></td>
+                            </tr>
+					    <?php endforeach; ?>
+				    <?php else: ?>
+                        <tr><td colspan="4"><?php esc_html_e('No logs found.', 'secure-updates-client'); ?></td></tr>
+				    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+		    <?php
+	    }
+
+	    function secure_updates_client_plugin_indicator($plugin_meta, $plugin_file) {
+		    // Check if this plugin is handled by the secure update client
+		    // For instance, if we know $plugin_file matches a plugin served by our custom host:
+		    if (secure_updates_client_is_plugin_securely_updated($plugin_file)) {
+			    $plugin_meta[] = '<span style="color: green; font-weight: bold;">' . __('Secure Updates Active', 'secure-updates-client') . '</span>';
+		    }
+		    return $plugin_meta;
+	    }
+
+	    function secure_updates_client_is_plugin_securely_updated($plugin_file) {
+		    // Logic to determine if the plugin update is routed through the secure server
+		    // For example, check if transient update URL is replaced or if plugin slug in a known mirrored list.
+		    // Simplified example:
+		    $mirrored_plugins = get_option('secure_updates_plugins', []);
+		    $slug = dirname($plugin_file);
+		    return isset($mirrored_plugins[$slug]);
+	    }
+
+
 
     }
 

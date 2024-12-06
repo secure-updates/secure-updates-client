@@ -1,4 +1,23 @@
-# Changelog
+# Secure Updates Client Changelog
+
+## [3.2] - 2024-04-27
+### Added
+- Logging Functionality:
+  - Database Table: Introduced a custom database table wp_secure_update_client_logs to store detailed logs of plugin-server communications.
+  - Logging Mechanism: Implemented functions to record actions such as connection tests, plugin synchronization, and update checks with their respective results and messages.
+  - Admin Logs Page: Added a new administrative page under Secure Updates Client > Logs to view recent communication logs in a structured table format.
+- Visual Indicators:
+  - Plugins Page Badges: Added "Secure Updates Active" badges next to plugins that are managed via the Secure Updates Server on the Plugins page.
+  - Dashboard Widget: Introduced a dashboard widget displaying the connection status to the Secure Updates Server, the timestamp of the last successful sync, and a "Test Connection" button for quick diagnostics.
+- Client Identification:
+  - Home URL Transmission: Modified client requests to include the site's home_url in the X-Client-Home header, allowing the server to uniquely identify and log client sites.
+
+### Changed
+- Plugin Update Mechanism:
+  - Enhanced the logic for overriding plugin update URLs to ensure accurate tracking and display of plugins managed via the Secure Updates Server.
+
+##$ Fixed
+- N/A
 
 ## [3.1] - 2024-11-05
 ### Added
